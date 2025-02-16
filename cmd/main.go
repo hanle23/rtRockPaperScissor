@@ -1,17 +1,67 @@
 package main
 
 import (
-	"fmt"
-	//	"log"
-	"net/http"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"html/template"
+	"io"
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hi there, I love %s!", r.URL.Path[1:])
+type Contact struct {
+	Name  string
+	Email string
+}
+
+func newContact(name, email string) Contact {
+	return Contact{
+		Name:  name,
+		Email: email,
+	}
+}
+
+type Contacts = []Contact
+
+type Data struct {
+	Contacts Contacts
+}
+
+func newData() Data {
+	return Data{
+		Contacts: []Contact{
+			newContact("John", "jd@gmail.com"),
+			newContact("Clara", "cd@gmail.com"),
+		},
+	}
+}
+
+type Templates struct {
+	templates *template.Template
+}
+
+func newTemplate() *Templates {
+	return &Templates{templates: template.Must(template.ParseGlob("views/templates/*.html"))}
+}
+
+func (t *Templates) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+	return t.templates.ExecuteTemplate(w, name, data)
 }
 
 func main() {
-	// http.HandleFunc("/", handler)
-	// log.Fatal(http.ListenAndServe(":8080", nil))
-	fmt.Println(templates)
+	e := echo.New()
+	e.Use(middleware.Logger())
+	data := newData()
+	e.Renderer = newTemplate()
+
+	e.GET("/", func(c echo.Context) error {
+		return c.Render(200, "index", data)
+	})
+
+	e.POST("/contacts", func(c echo.Context) error {
+		name := c.FormValue("name")
+		email := c.FormValue("email")
+		data.Contacts = append(data.Contacts, newContact(name, email))
+
+		return c.Render(200, "display", data)
+	})
+	e.Logger.Fatal(e.Start(":42069"))
 }
